@@ -1,0 +1,6 @@
+---
+# handlers file for grafana
+- name: Restart alloy
+  ansible.builtin.service:
+    name: alloy
+    state: restarted

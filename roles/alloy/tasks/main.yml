@@ -1,0 +1,34 @@
+---
+- name: Add Grafana Repo
+  ansible.builtin.deb822_repository:
+    name: grafana
+    types: deb
+    uris: https://apt.grafana.com
+    suites: stable
+    components: main
+    signed_by: https://apt.grafana.com/gpg.key
+
+- name: Install Alloy
+  become: true
+  ansible.builtin.apt:
+    pkg: "{{ item }}"
+    state: present
+    update_cache: true
+  with_items:
+    - alloy
+
+- name: Install Alloy config
+  ansible.builtin.template:
+    src: config.alloy.j2
+    dest: /etc/alloy/config.alloy
+    mode: "0755"  # explicitly sets the desired permissions, to make the results predictable
+  notify:
+    - Restart alloy
+
+- name: Ensure services enabled and started
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  with_items:
+    - alloy

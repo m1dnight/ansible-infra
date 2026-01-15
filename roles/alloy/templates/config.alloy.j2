@@ -1,0 +1,119 @@
+// Ansible Managed
+
+logging {
+  level    = "debug"
+  format   = "json"
+  write_to = [loki.write.grafana_cloud.receiver]
+}
+
+// Live debugging for in the UI
+// livedebugging { }
+
+// Read log files using glob patterns
+loki.source.file "local_files" {
+	targets    = [{__path__ = "/var/log/**/*.log"}]
+	forward_to = [loki.process.filter_logs.receiver]
+
+	file_match {
+		enabled     = true
+		sync_period = "10s"
+	}
+}
+
+loki.source.journal "systemdlogs" {
+	max_age    = "24h0m0s"
+	forward_to = [loki.process.filter_logs.receiver]
+}
+
+// Regex to ignore certain log lines
+loki.process "filter_logs" {
+	stage.drop {
+		source              = ""
+		expression          = ".*ignore this"
+		drop_counter_reason = "noisy"
+	}
+	forward_to = [loki.process.add_labels.receiver]
+}
+
+// Extract data from log messages and add labels
+loki.process "add_labels" {
+	// https://grafana.com/docs/alloy/latest/reference/stdlib/constants/
+	stage.static_labels {
+		values = {
+			hostname = constants.hostname,
+		}
+	}
+
+	forward_to = [loki.write.grafana_cloud.receiver]
+}
+
+// Send processed logs to Loki
+loki.write "grafana_cloud" {
+	endpoint {
+		url = "{{ alloy_url }}"
+	}
+}
+
+prometheus.scrape "pg_exporter" {
+    targets = [{"__address__" = "localhost:9630", instance = constants.hostname, service = "pg_exporter"}]
+    forward_to = [prometheus.remote_write.mimir.receiver]
+    metrics_path = "/metrics"
+    scrape_interval = "10s"
+}
+
+prometheus.scrape "data_api" {
+    targets = [{"__address__" = "localhost:4000", instance = constants.hostname, service = "data_api"}]
+    forward_to = [prometheus.remote_write.mimir.receiver]
+    metrics_path = "/metrics"
+    scrape_interval = "10s"
+}
+
+prometheus.relabel "keep_backend_only" {
+  forward_to = [prometheus.remote_write.mimir.receiver]
+
+  rule {
+    action        = "replace"
+    source_labels = ["__address__", "instance"]
+    separator     = "/"
+    target_label  = "host"
+  }
+  rule {
+    action        = "keep"
+    source_labels = ["app"]
+    regex         = "backend"
+  }
+  rule {
+    action = "labeldrop"
+    regex  = "instance"
+  }
+}
+
+prometheus.exporter.unix "localhost" { }
+
+prometheus.scrape "default" {
+    scrape_interval = "10s"
+
+    targets    = prometheus.exporter.unix.localhost.targets
+    forward_to = [
+        prometheus.relabel.example.receiver,
+    ]
+}
+
+prometheus.relabel "example" {
+    forward_to = [
+        prometheus.remote_write.mimir.receiver,
+    ]
+
+    rule {
+        action       = "replace"
+        target_label = "os"
+        replacement  = constants.os
+    }
+}
+
+
+prometheus.remote_write "mimir" {
+  endpoint {
+    url = "{{ alloy_mimir_url }}"
+  }
+}
