@@ -17,18 +17,18 @@
   with_items:
     - alloy
 
-- name: Install Alloy config
-  ansible.builtin.template:
-    src: config.alloy.j2
-    dest: /etc/alloy/config.alloy
-    mode: "0755"  # explicitly sets the desired permissions, to make the results predictable
-  notify:
-    - Restart alloy
+# - name: Install Alloy config
+#   ansible.builtin.template:
+#     src: config.alloy.j2
+#     dest: /etc/alloy/config.alloy
+#     mode: "0755"  # explicitly sets the desired permissions, to make the results predictable
+#   notify:
+#     - Restart alloy
 
-- name: Ensure services enabled and started
-  ansible.builtin.service:
-    name: "{{ item }}"
-    state: started
-    enabled: true
-  with_items:
-    - alloy
+# - name: Ensure services enabled and started
+#   ansible.builtin.service:
+#     name: "{{ item }}"
+#     state: started
+#     enabled: true
+#   with_items:
+#     - alloy
